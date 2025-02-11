@@ -8,6 +8,6 @@
 #SBATCH --mail-user=Jordan.Strasser@tufts.edu       # Email address for notifications
 #SBATCH --error=%x-%J-%u.err   # Standard error file: <job_name>-<job_id>-<username>.err
 #SBATCH --output=%x-%J-%u.out  # Standard output file: <job_name>-<job_id>-<username>.out
-/cluster/tufts/levinlab/jstras02/fucci/code/graphs.py
+/cluster/tufts/levinlab/jstras02/fucci/code/graphs.py /cluster/home/jstras02/levinlab_link/data/FUCCI/NS
 
 
