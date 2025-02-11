@@ -502,8 +502,10 @@ def roseplot(base_path):
             print(f'{t} does not exist')
 
 def main():
-    # USER INPUT
-    base_path = Path('PATH_TO_DIR_CONTAINING_WELLS')
+    if len(sys.argv) != 2:
+        print("Usage: python graphs.py <plate_path>")
+        sys.exit(1)
+    base_path = Path(sys.argv[1])
     drugs = getdrugs(base_path)
     print(drugs)
     generate_pie_chart(base_path, drugs)
