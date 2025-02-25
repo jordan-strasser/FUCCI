@@ -442,62 +442,71 @@ def getdrugs(base_path):
 
     return sorted(drugs)  # Return a sorted list of drugs
 
+
+import pandas as pd
+import matplotlib.pyplot as plt
+from pathlib import Path
+import numpy as np
+
 def roseplot(base_path):
     """
     Generates a rose plot of cell migration trajectories and 
-    returns a DataFrame with shifted X and Y positions for all tracks.
+    enforces consistent x and y axis limits (±150 µm) for comparison.
 
-    Parameters:
-    - df: DataFrame containing the track data.
     - base_path: Base path to save the plots.
 
     Returns:
     - A DataFrame with shifted X and Y positions for each track.
     """
-    # Conversion factor from pixels to micrometers
     days = ['Day0', 'Day1', 'Day2']
     drugs = ['A', 'B', 'C']
     concs = ['a', 'b', 'c', 'd', 'Ctrl']
     combos = [d + c for c in concs for d in drugs]
     filepaths = [c + '_roseplot_data.csv' for c in combos]
     total_paths = [d + '/aggregated/' + f for f in filepaths for d in days]
-    
+
     for t in total_paths:
         day = t.split('/')[0]
         roseplot_path = base_path / t
         if roseplot_path.is_file():
-            
             df = pd.read_csv(roseplot_path)
 
-            um_per_pixel = 1.3556
+            # Set figure size back to (10, 10) for quality
+            fig, ax = plt.subplots(figsize=(10, 10))
 
-            # Initialize a list to store shifted trajectory data for each track
-            shifted_data = []
-
-            # Create a figure for the rose plot
-            plt.figure(figsize=(10, 10))
-
-            # only keeps around cells that were there for 90 frames, or 15 hours
-
-            # Loop through each track ID in 'all_ids' and plot its trajectory
+            # Loop through each track ID and plot its trajectory
             for track_id in df['all_ids'].unique():
                 df_filtered = df[df['all_ids'] == track_id].copy()
-                plt.plot(df_filtered['shifted_POSITION_X'], df_filtered['shifted_POSITION_Y'], label=f'Track {track_id}')
+                ax.plot(df_filtered['shifted_POSITION_X'], df_filtered['shifted_POSITION_Y'], label=f'Track {track_id}')
 
-            # Add labels, title, and grid
-            plt.title('Cell Migration Rose Plot')
-            plt.xlabel('X-Distance (µm)')
-            plt.ylabel('Y-Distance (µm)')
-            plt.grid(True)
+            # Enforce consistent axis limits
+            ax.set_xlim(-300, 300)  # ±300 µm
+            ax.set_ylim(-300, 300)  # ±300 µm
+            tick_interval = 100
+            ax.set_xticks(np.arange(-300, 301, tick_interval))
+            ax.set_yticks(np.arange(-300, 301, tick_interval))
 
-            # Save the rose plot
-            output_folder = base_path / 'output' / day
-            output_folder.mkdir(parents=True, exist_ok=True) # Ensure directory exists
+            font_size = 36  # Adjust as needed
+
+            ax.set_title('Cell Migration Rose Plot', fontsize=font_size, pad=30)
+            ax.set_xlabel('X-Distance (µm)', fontsize=font_size, labelpad=20)
+            ax.set_ylabel('Y-Distance (µm)', fontsize=font_size, labelpad=20)
+    
+
+            ax.tick_params(axis='both', which='major', labelsize=font_size, pad=10)
+            ax.grid(True)
+
+            plt.tight_layout()
+
+            # Save the rose plot in 'output/roseplots/[day]'
+            output_folder = base_path / 'output' / 'roseplots' / day
+            output_folder.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
             name_parts = roseplot_path.name.split('_')
             graph_filename = "_".join(name_parts[:2]) + '.png'
-            plt.savefig(output_folder / graph_filename)
+            plt.subplots_adjust(left=0.15, right=0.95, top=0.9, bottom=0.15)
+            fig.savefig(output_folder / graph_filename, bbox_inches='tight', pad_inches=0.5)
             plt.show()
-            plt.close()
+            plt.close(fig)
         else: 
             print(f'{t} does not exist')
 
