@@ -1,7 +1,5 @@
-# USER INPUT TO ENVIRONMENT CONTAINING CONFLUENTFUCCI'S PYTHON
 #!/usr/bin/env /cluster/home/jstras02/cf/python
 import sys
-# USER INPUT PATH TO CORRECT PYTHON ENVIRONMENT
 sys.path.append('/cluster/home/jstras02/.conda/envs/rhel8/2024.06-py311/extra/lib/python3.10/site-packages')
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -442,7 +440,6 @@ def getdrugs(base_path):
 
     return sorted(drugs)  # Return a sorted list of drugs
 
-
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -509,6 +506,7 @@ def roseplot(base_path):
             plt.close(fig)
         else: 
             print(f'{t} does not exist')
+
 
 def main():
     if len(sys.argv) != 2:
