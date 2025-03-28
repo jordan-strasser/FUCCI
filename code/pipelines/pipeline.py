@@ -1131,6 +1131,25 @@ def aggregate_data(root_path: str):
 
     def average_dfs(df_list):
         return sum(df_list) / len(df_list) if df_list else pd.DataFrame()
+    
+    def is_valid_df(df, filename):
+        if filename == 'pie_data.csv':
+            # For each column (timepoint), count how many zeros it has
+            # Exclude if there is any column other than t=0 with all zeros (across rows)
+            for col in df.columns:
+                if (df[col] == 0).sum() >= 2:
+                    # If column at timepoint >=48 has two or more zeros, exclude this df
+                    return False
+            return True
+
+        elif filename == 'EMT_data.csv':
+            # EMT has two rows: Exclude if both rows are 0 at any column other than t=0
+            for col in df.columns:
+                if (df[col] == 0).sum() == 2:
+                    return False
+            return True
+        else:
+            return True
 
     def extract_boxplot_stats(wells):
         dfs = load_csv(wells, 'boxplot_data.csv')
@@ -1157,17 +1176,20 @@ def aggregate_data(root_path: str):
         for file_name in files_to_aggregate:
             try:
                 dfs = load_csv(wells, file_name)
+
+                # Filter dfs based on the validity check
+                valid_dfs = [df for df in dfs if is_valid_df(df, file_name)]
+
                 output_file = aggregated_path / f'{group}_{file_name}'
                 output_graph_file = aggregated_graph_path / f'{group}_{file_name}'
 
                 if file_name in ['pie_data.csv', 'EMT_data.csv']:
-                    avg_df = average_dfs(dfs)
+                    avg_df = average_dfs(valid_dfs)
                     if len(avg_df) > 0:
                         avg_df.to_csv(output_file, index=False)
                         print(f"Saved {output_file}.")
                     else:
-                        print(f"Error processing {file_name} for group {group}: Empty file")
-
+                        print(f"Error processing {file_name} for group {group}: Empty or invalid data after filtering")
                 elif file_name == 'boxplot_data.csv':
                     avg_boxplot_stats = extract_boxplot_stats(wells)
                     avg_boxplot_stats.to_csv(output_file, index=False)
@@ -1179,7 +1201,7 @@ def aggregate_data(root_path: str):
                     print(f"Saved {output_file}.")
 
             except Exception as e:
-                print(f"Error processing {file_name} for group {group}: {e}")
+                print(f"Exception processing {file_name} for group {group}: {e}")
 
 
 def single_well(base_path, lim, conv): 
