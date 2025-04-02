@@ -4,275 +4,237 @@ sys.path.append('/cluster/home/jstras02/.conda/envs/rhel8/2024.06-py311/extra/li
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
+from matplotlib.patches import Patch 
+import numpy as np
 
 def generate_pie_chart(base_path, drugs):
-    """
-    Load, process, and generate pie charts from PIE data across multiple days.
-    
-    Parameters:
-    - base_path (str or Path): The base path where the data is located.
-
-    Saves:
-    - A pie chart graph saved to 'collective_graphs/pie_chart.png' within base_path.
-    """
-    # Convert base_path to Path object if it's a string
     base_path = Path(base_path)
-
-    # Days and filenames to process
     days = ['Day0', 'Day1', 'Day2']
     concs = ['a', 'b', 'c', 'd', 'Ctrl']
     filename = '_pie_data.csv'
 
-    # Prepare to store DataFrames for each day
-
-    for drug in drugs: 
-        names = [drug + conc for conc in concs]
-        filenames = [name + filename for name in names]
+    for drug in drugs:
         dataframes_per_day = []
-    # Process data for each day
+
         for day in days:
-            # Define the path for the current day's data
             day_path = base_path / day / 'aggregated'
+            daily_dfs = []
 
-            # Load and concatenate all files for the current day
-            dataframes = [
-                pd.read_csv(day_path / filename) 
-                for filename in filenames 
-                if (day_path / filename).exists()
-            ]
-                
-            combined_df = pd.concat(dataframes, axis=0).reset_index(drop=True)
+            for conc in concs:
+                fname = f"{drug}{conc}{filename}"
+                file_path = day_path / fname
 
-            # Store the combined DataFrame
-            dataframes_per_day.append(combined_df)
+                if file_path.exists():
+                    df = pd.read_csv(file_path)
+                    # Ensure shape (3 rows x 3 cols)
+                    if df.shape != (3, 3):
+                        raise ValueError(f"File {fname} has unexpected shape: {df.shape}")
+                else:
+                    # Explicitly match the file structure: 3 rows × 3 columns placeholder
+                    df = pd.DataFrame(np.nan, columns=['t = 0', 't = 48', 't = 96'], index=range(3))
 
-        # Concatenate all days into a final DataFrame
-        final_df = pd.concat(dataframes_per_day, axis=1).reset_index(drop=True)
+                daily_dfs.append(df)
 
-        # Assign new column names representing time points
-        new_columns = [f't = {i}' for i in range(0, 65, 8)]
-        final_df.columns = new_columns
+            # Concatenate vertically (stack concentrations): 5 concentrations × 3 rows each = 15 rows, 3 cols
+            combined_day_df = pd.concat(daily_dfs, axis=0).reset_index(drop=True)
+            dataframes_per_day.append(combined_day_df)
 
-        # Prepare data for plotting
-        y_labels = concs  # Group labels
-        time_points = new_columns  # Use new columns as time points
-        colors = ['red', 'green', 'yellow']  # Colors for pie slices
-        labels = ['G0/G1', 'S/G2/M', 'G1/S']  # Corresponding biological stages
+        # Concatenate horizontally (days): 15 rows, 3 days × 3 cols = 9 cols total
+        final_df = pd.concat(dataframes_per_day, axis=1, ignore_index=True)
 
-        # Create a 5x9 grid of subplots (5 groups, 9 time points)
+        # Explicitly assign correct timepoint labels across 3 days
+        final_df.columns = [
+            '0', '8', '16',
+            '24', '32', '40',
+            '48', '56', '64'
+        ]
+
+        # Prepare plotting variables
+        y_labels = concs
+        colors = ['red', 'green', 'yellow']
+        labels = ['G0/G1', 'S/G2/M', 'G1/S']
+
         fig, axes = plt.subplots(5, 9, figsize=(20, 10))
 
-        # Generate pie charts for each group and time point
-        for i, ax_row in enumerate(axes):  # Loop over the 5 groups (rows)
-            for j, ax in enumerate(ax_row):  # Loop over the 9 time points (columns)
-                # Extract values for red, green, and yellow for the current subplot
+        for i, ax_row in enumerate(axes):
+            for j, ax in enumerate(ax_row):
                 red = final_df.iloc[i * 3, j]
                 green = final_df.iloc[i * 3 + 1, j]
                 yellow = final_df.iloc[i * 3 + 2, j]
 
-                # Create a pie chart in the current subplot
-                ax.pie([red, green, yellow], colors=colors, startangle=90)
-                ax.axis('equal')  # Ensure the pie chart is a circle
+                # Grey placeholder if any value missing or invalid
+                if pd.isna(red) or pd.isna(green) or pd.isna(yellow) or (red + green + yellow == 0):
+                    ax.pie([1], colors=['lightgrey'], labels=['No Data'], textprops={'fontsize': 10})
+                else:
+                    ax.pie([red, green, yellow], colors=colors, startangle=90)
 
-        # Adjust layout for better spacing
+                ax.axis('equal')
+
         plt.tight_layout()
 
-        # Add a y-axis label for concentration
         fig.text(0.0, 0.5, 'Concentration', va='center', rotation='vertical', fontsize=14)
-
-        # Add row labels (A, B, C, D, Ctrl) to the left of each row
         for i, label in enumerate(y_labels):
             fig.text(0.03, 0.9 - i * 0.18, label, va='center', ha='right', fontsize=12)
 
-        # Add a common x-axis label for time
-        fig.text(0.5, 0.00, 'Time (hours)', ha='center', va='center', fontsize=14)
+        fig.text(0.5, 0.00, 'Time (hours)', ha='center', fontsize=14)
+        for j, col_label in enumerate(final_df.columns):
+            fig.text(0.1 + j * 0.1, 0.02, col_label, ha='center', fontsize=12)
+        # Create custom legend elements
+        legend_elements = [
+            Patch(facecolor='red', label='G0/G1'),
+            Patch(facecolor='green', label='S/G2/M'),
+            Patch(facecolor='yellow', label='G1/S'),
+            Patch(facecolor='lightgrey', label='No Data')
+        ]
 
-        # Add individual time point labels at the bottom of each column
-        for j, time in enumerate(time_points):
-            fig.text(0.10 + j * 0.1, 0.02, time, ha='center', va='center', fontsize=12)
+        # Replace your old legend line with this explicit legend:
+        fig.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.15, 1.05), fontsize=12)
 
-        # Add a legend for the pie chart labels
-        fig.legend(labels=labels, loc='upper right', bbox_to_anchor=(1.15, 1.05), fontsize=12)
-
-        # Adjust layout to ensure proper spacing
         plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05, wspace=0.3, hspace=0.5)
 
-        # Define the path to save the graph
         output_dir = base_path / 'output' / 'collective_graphs'
-        output_dir.mkdir(parents=True, exist_ok=True)  # Create directory if not exists
+        output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f'{drug}_pie_chart.png'
 
-        # Save the figure
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
         print(f"Graph saved at: {output_file}")
-
-        # Display the plot
         plt.show()
 
-import pandas as pd
-import matplotlib.pyplot as plt
-from pathlib import Path
-
 def generate_EMT_chart(base_path, drugs):
-    """
-    Load, process, and generate pie charts from EMT data across multiple days.
-    
-    Parameters:
-    - base_path (str or Path): The base path where the data is located.
-
-    Saves:
-    - A pie chart graph saved to 'collective_graphs/EMT_chart.png' within base_path.
-    """
-    # Convert base_path to Path object if it's a string
     base_path = Path(base_path)
-
-    # Days and filenames to process
     days = ['Day0', 'Day1', 'Day2']
     concs = ['a', 'b', 'c', 'd', 'Ctrl']
     filename = '_EMT_data.csv'
 
-    for drug in drugs: 
-        # Define group names and filenames
-        names = [drug + conc for conc in concs]
-        filenames = [name + filename for name in names]
+    for drug in drugs:
         dataframes_per_day = []
 
-        # Process data for each day
         for day in days:
             day_path = base_path / day / 'aggregated'
-            # Load and concatenate all files for the current day
-            dataframes = [
-                pd.read_csv(day_path / filename) 
-                for filename in filenames 
-                if (day_path / filename).exists()
-            ]
-            combined_df = pd.concat(dataframes, axis=0).reset_index(drop=True)
-            dataframes_per_day.append(combined_df)
+            daily_dfs = []
 
-        # Concatenate all days into a final DataFrame
-        EMT_df = pd.concat(dataframes_per_day, axis=1).reset_index(drop=True)
+            for conc in concs:
+                fname = f"{drug}{conc}{filename}"
+                file_path = day_path / fname
 
-        # Select only the desired columns (1st, 4th, 7th)
+                if file_path.exists():
+                    df = pd.read_csv(file_path)
+                    if df.shape != (2, 3):
+                        raise ValueError(f"File {fname} has unexpected shape: {df.shape}")
+                else:
+                    # Correct 2 rows × 3 columns placeholder
+                    df = pd.DataFrame(np.nan, columns=['t = 0', 't = 48', 't = 96'], index=range(2))
+
+                daily_dfs.append(df)
+
+            # Stack concentrations vertically: 5 concentrations × 2 rows = 10 rows, 3 columns per day
+            combined_day_df = pd.concat(daily_dfs, axis=0).reset_index(drop=True)
+            dataframes_per_day.append(combined_day_df)
+
+        # Concatenate horizontally (3 days): final_df is 10 rows × 9 columns
+        final_df = pd.concat(dataframes_per_day, axis=1, ignore_index=True)
         selected_columns = [0, 3, 6]  # Indices for 1st, 4th, and 7th columns
-        EMT_df = EMT_df.iloc[:, selected_columns]
+        final_df = final_df.iloc[:, selected_columns]
 
-        # Assign new column names representing time points
-        new_columns = [f't = {i}' for i in range(0, 65, 24)]  # [0, 24, 48]
-        EMT_df.columns = new_columns
+        # Explicitly name columns
+        final_df.columns = ['0','24','48']
 
-        # Prepare data for plotting
-        y_labels = ['A', 'B', 'C', 'D', 'Ctrl']  # Group labels
-        time_points = new_columns  # Use new columns as time points
-        colors = ['brown', 'cyan']  # Colors for attached and detached cells
-        labels = ['attached', 'detached']  # Labels for the legend
+        # Plotting variables
+        y_labels = ['a', 'b', 'c', 'd', 'Ctrl']
+        colors = ['brown', 'cyan']
+        labels = ['attached', 'detached']
 
-        # Create a 5x3 grid of subplots (5 groups, 3 time points)
-        fig, axes = plt.subplots(5, 3, figsize=(15, 10))
+        fig, axes = plt.subplots(5, 3, figsize=(20, 10))
 
-        # Generate pie charts for each group and time point
-        for i, ax_row in enumerate(axes):  # Loop over the 5 groups (rows)
-            for j, ax in enumerate(ax_row):  # Loop over the 3 selected columns (columns)
-                # Extract values for attached and detached cells for the current subplot
-                attached = EMT_df.iloc[i * 2, j]
-                detached = EMT_df.iloc[i * 2 + 1, j]
+        for i, ax_row in enumerate(axes):
+            for j, ax in enumerate(ax_row):
+                attached = final_df.iloc[i * 2, j]
+                detached = final_df.iloc[i * 2 + 1, j]
 
-                # Create a pie chart in the current subplot
-                ax.pie([attached, detached], colors=colors, startangle=90)
-                ax.axis('equal')  # Ensure the pie chart is a circle
+                # Check for NaNs or zero total explicitly
+                if pd.isna(attached) or pd.isna(detached) or (attached + detached == 0):
+                    ax.pie([1], colors=['lightgrey'], labels=['No Data'], textprops={'fontsize': 10})
+                else:
+                    ax.pie([attached, detached], colors=colors, startangle=90)
 
-        # Adjust layout for better spacing
+                ax.axis('equal')
+
         plt.tight_layout()
 
-        # Add a y-axis label for concentration
         fig.text(0.0, 0.5, 'Concentration', va='center', rotation='vertical', fontsize=14)
-
-        # Add row labels (A, B, C, D, Ctrl) to the left of each row
         for i, label in enumerate(y_labels):
             fig.text(0.03, 0.9 - i * 0.18, label, va='center', ha='right', fontsize=12)
 
-        # Add a common x-axis label for time
-        fig.text(0.5, 0.00, 'Time (hours)', ha='center', va='center', fontsize=14)
+        fig.text(0.5, 0.00, 'Time (hours)', ha='center', fontsize=14)
+        for j, col_label in enumerate(final_df.columns):
+            fig.text(0.10 + j * 0.1, 0.02, col_label, ha='center', fontsize=12)
 
-        # Add individual time point labels at the bottom of each column
-        n_columns = 3  # Number of columns in the grid
-        x_positions = [0.19, 0.5, 0.81]  # Adjusted x positions for 3 columns
+        # Explicit custom legend with correct colors
+        from matplotlib.patches import Patch
+        legend_elements = [
+            Patch(facecolor='brown', label='attached'),
+            Patch(facecolor='cyan', label='detached'),
+            Patch(facecolor='lightgrey', label='No Data')
+        ]
 
-        for j, (x, time) in enumerate(zip(x_positions, time_points)):
-            fig.text(x, 0.02, time, ha='center', va='center', fontsize=12)
+        fig.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.15, 1.05), fontsize=12)
+        plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05, wspace=0.3, hspace=0.5)
 
-        # Add a legend for attached and detached labels
-        fig.legend(labels=labels, loc='upper right', bbox_to_anchor=(1.15, 1.05), fontsize=12)
-
-        # Adjust layout to ensure proper spacing
-        plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.08, wspace=0.05, hspace=0.4)
-
-        # Define the path to save the graph
-        output_dir = base_path / 'output'/ 'collective_graphs'
+        output_dir = base_path / 'output' / 'collective_graphs'
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f'{drug}_EMT_chart.png'
 
-        # Save the figure
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
         print(f"Graph saved at: {output_file}")
-
-        # Display the plot
         plt.show()
 
 
-
-
-
-import pandas as pd
-from pathlib import Path
-
 def process_velocity_data(base_path, drugs, column_name):
-    """
-    Process velocity data by concatenating specific columns from multiple files across days.
-    
-    Parameters:
-    - base_path (str or Path): Base path to the data directory.
-    - column_name (str): Name of the column to extract ('max' or 'avg').
-    
-    Saves:
-    - A CSV file for each day in the 'collective_results' directory.
-    """
-    # Convert base_path to a Path object if it's a string
     base_path = Path(base_path)
 
-    # Days to process
     days = ['Day0', 'Day1', 'Day2']
     concs = ['a', 'b', 'c', 'd', 'Ctrl']
     filename = '_velocity_data.csv'
 
+    results_path = base_path / 'output' / 'velocity_tables'
+    results_path.mkdir(parents=True, exist_ok=True)
 
-    # Directory to save results
-    results_path = base_path / 'output'/ 'velocity_tables'
-    results_path.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
-
-    for drug in drugs: 
+    for drug in drugs:
         names = [drug + conc for conc in concs]
-        filenames = [name + filename for name in names]
-        dataframes_per_day = []
 
-        # Process each day
         for day in days:
-            # Define the path for the current day
             day_path = base_path / day / 'aggregated'
 
-            # Load DataFrames and extract the relevant column ('max_velocity' or 'avg_velocity')
-            mf = [
-                pd.read_csv(day_path / filename)[f'{column_name}_velocity'] 
-                for filename in filenames
-                if (day_path / filename).exists()
+            columns_data = []
+            for conc in concs:
+                fname = f"{drug}{conc}{filename}"
+                file_path = day_path / fname
+
+                if file_path.exists():
+                    df_temp = pd.read_csv(file_path)
+                    # Check if the column exists
+                    if f'{column_name}_velocity' in df_temp.columns:
+                        velocity_series = df_temp[f'{column_name}_velocity']
+                    else:
+                        # Column missing, fill with 0
+                        velocity_series = pd.Series([0])
+                else:
+                    # File missing, explicitly insert a single '0' as placeholder
+                    velocity_series = pd.Series([0])
+
+                columns_data.append(velocity_series.reset_index(drop=True))
+
+            # Make sure all series have same length (fill shorter ones with zeros)
+            max_length = max(len(s) for s in columns_data)
+            columns_data_aligned = [
+                s.reindex(range(max_length), fill_value=0)
+                for s in columns_data
             ]
 
-            # Concatenate the columns side by side
-            velocity_df = pd.concat(mf, axis=1).reset_index(drop=True)
-
-            # Assign column names for clarity
+            # Concatenate horizontally
+            velocity_df = pd.concat(columns_data_aligned, axis=1)
             velocity_df.columns = names
 
-            # Save the result to the collective_results directory
             output_file = results_path / f"{day}_{drug}_{column_name}_velocity.csv"
             velocity_df.to_csv(output_file, index=False)
 
@@ -440,72 +402,57 @@ def getdrugs(base_path):
 
     return sorted(drugs)  # Return a sorted list of drugs
 
-import pandas as pd
-import matplotlib.pyplot as plt
-from pathlib import Path
-import numpy as np
 
 def roseplot(base_path):
-    """
-    Generates a rose plot of cell migration trajectories and 
-    enforces consistent x and y axis limits (±150 µm) for comparison.
-
-    - base_path: Base path to save the plots.
-
-    Returns:
-    - A DataFrame with shifted X and Y positions for each track.
-    """
+    base_path = Path(base_path)
     days = ['Day0', 'Day1', 'Day2']
     drugs = ['A', 'B', 'C']
     concs = ['a', 'b', 'c', 'd', 'Ctrl']
     combos = [d + c for c in concs for d in drugs]
     filepaths = [c + '_roseplot_data.csv' for c in combos]
-    total_paths = [d + '/aggregated/' + f for f in filepaths for d in days]
 
-    for t in total_paths:
-        day = t.split('/')[0]
-        roseplot_path = base_path / t
-        if roseplot_path.is_file():
+    for day in days:
+        for file in filepaths:
+            roseplot_path = base_path / day / 'aggregated' / file
+
+            if not roseplot_path.exists():
+                # Explicitly skip missing files
+                print(f"File {roseplot_path} does not exist. Skipping...")
+                continue
+
+            # Load and plot existing files
             df = pd.read_csv(roseplot_path)
 
-            # Set figure size back to (10, 10) for quality
             fig, ax = plt.subplots(figsize=(10, 10))
 
-            # Loop through each track ID and plot its trajectory
             for track_id in df['all_ids'].unique():
-                df_filtered = df[df['all_ids'] == track_id].copy()
+                df_filtered = df[df['all_ids'] == track_id]
                 ax.plot(df_filtered['shifted_POSITION_X'], df_filtered['shifted_POSITION_Y'], label=f'Track {track_id}')
 
-            # Enforce consistent axis limits
-            ax.set_xlim(-300, 300)  # ±300 µm
-            ax.set_ylim(-300, 300)  # ±300 µm
+            # Explicitly set consistent axis limits
+            ax.set_xlim(-300, 300)
+            ax.set_ylim(-300, 300)
             tick_interval = 100
             ax.set_xticks(np.arange(-300, 301, tick_interval))
             ax.set_yticks(np.arange(-300, 301, tick_interval))
 
-            font_size = 36  # Adjust as needed
-
+            font_size = 36
             ax.set_title('Cell Migration Rose Plot', fontsize=font_size, pad=30)
             ax.set_xlabel('X-Distance (µm)', fontsize=font_size, labelpad=20)
             ax.set_ylabel('Y-Distance (µm)', fontsize=font_size, labelpad=20)
-    
 
-            ax.tick_params(axis='both', which='major', labelsize=font_size, pad=10)
+            ax.tick_params(axis='both', labelsize=font_size, pad=10)
             ax.grid(True)
 
             plt.tight_layout()
 
-            # Save the rose plot in 'output/roseplots/[day]'
             output_folder = base_path / 'output' / 'roseplots' / day
-            output_folder.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
-            name_parts = roseplot_path.name.split('_')
-            graph_filename = "_".join(name_parts[:2]) + '.png'
-            plt.subplots_adjust(left=0.15, right=0.95, top=0.9, bottom=0.15)
+            output_folder.mkdir(parents=True, exist_ok=True)
+            graph_filename = file.replace('_roseplot_data.csv', '_roseplot.png')
             fig.savefig(output_folder / graph_filename, bbox_inches='tight', pad_inches=0.5)
-            plt.show()
+            print(f"Rose plot saved at: {output_folder / graph_filename}")
+
             plt.close(fig)
-        else: 
-            print(f'{t} does not exist')
 
 
 def main():

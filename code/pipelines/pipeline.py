@@ -1,4 +1,3 @@
-# USER INPUT TO CONFLUENTFUCCI'S PYTHON ENVIRONMENT
 #!/usr/bin/env /cluster/home/jstras02/cf/python
 import sys
 # USER INPUT TO PYTHON PATH
@@ -1122,11 +1121,23 @@ def aggregate_data(root_path: str):
 
 
     def load_csv(wells, file_name):
-        dfs = [
-            pd.read_csv(root_path / well / 'data' / file_name) 
-            for well in wells 
-            if (root_path / well / 'data' / file_name).exists()
-        ]
+        dfs = []
+        for well in wells:
+            file_path = root_path / well / 'data' / file_name
+            if file_path.exists():
+                try:
+                    df = pd.read_csv(file_path)
+                    # explicitly skip if DataFrame is empty or contains no columns
+                    if df.empty or df.shape[1] == 0:
+                        print(f"Warning: {file_path} is empty or has no columns. Skipping this file.")
+                        continue
+                    dfs.append(df)
+                except pd.errors.EmptyDataError:
+                    # Handle empty file explicitly
+                    print(f"Warning: {file_path} is empty (no data). Skipping this file.")
+                except Exception as ex:
+                    # Handle other unexpected errors explicitly
+                    print(f"Warning: Error reading {file_path}: {ex}. Skipping this file.")
         return dfs
 
     def average_dfs(df_list):
@@ -1194,11 +1205,21 @@ def aggregate_data(root_path: str):
                     avg_boxplot_stats = extract_boxplot_stats(wells)
                     avg_boxplot_stats.to_csv(output_file, index=False)
                     print(f"Saved {output_file}.")
+                """
+                there is a potential weak spot here:
 
+                """
                 elif file_name in ['roseplot_data.csv', 'velocity_data.csv']:
-                    concatenated_df = pd.concat(dfs, ignore_index=True)
-                    concatenated_df.to_csv(output_file, index=False)
-                    print(f"Saved {output_file}.")
+                    # Filter out empty or NaN-filled DataFrames explicitly before concatenating
+                    valid_dfs = [df for df in dfs if not df.empty and not df.dropna(how='all').empty]
+
+                    if valid_dfs:
+                        concatenated_df = pd.concat(valid_dfs, ignore_index=True)
+                        concatenated_df.to_csv(output_file, index=False)
+                        print(f"Saved {output_file}.")
+                    else:
+                        # Handle explicitly the case of no valid dataframes
+                        print(f"No valid data found for {file_name}. Skipping file.")
 
             except Exception as e:
                 print(f"Exception processing {file_name} for group {group}: {e}")
