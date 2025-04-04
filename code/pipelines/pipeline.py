@@ -1142,25 +1142,6 @@ def aggregate_data(root_path: str):
 
     def average_dfs(df_list):
         return sum(df_list) / len(df_list) if df_list else pd.DataFrame()
-    
-    def is_valid_df(df, filename):
-        if filename == 'pie_data.csv':
-            # For each column (timepoint), count how many zeros it has
-            # Exclude if there is any column other than t=0 with all zeros (across rows)
-            for col in df.columns:
-                if (df[col] == 0).sum() >= 2:
-                    # If column at timepoint >=48 has two or more zeros, exclude this df
-                    return False
-            return True
-
-        elif filename == 'EMT_data.csv':
-            # EMT has two rows: Exclude if both rows are 0 at any column other than t=0
-            for col in df.columns:
-                if (df[col] == 0).sum() == 2:
-                    return False
-            return True
-        else:
-            return True
 
     def extract_boxplot_stats(wells):
         dfs = load_csv(wells, 'boxplot_data.csv')
