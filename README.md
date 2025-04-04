@@ -11,6 +11,8 @@ Our automated image analysis pipeline can be broken into three main steps: 1) pr
 
 3) After we generated .csv files for the tracking data, a separate plotting pipeline (graphs.py) was used to generate graphs for cell cycle durations, epithelial to mesenchymal phenotypes and migratory capacity across different drugs and concentrations.
 
+4) We have included additional post-processing functions that may be helpful for the user to drop noisy wells, re-aggregate data, and re-run specific graphs. 
+
 
 Due to the computational resources required, we ran both the FUCCI analysis and graph generating pipelines as batch scripts (pscript.sh & gscript.sh) on the Tufts High Performance Computing Cluster (HPC). To implement this, we used Singularity to pull the confluentFUCCI container, created a Python shell and manually added its location in the Python interpreter path for our pipeline.py script. 
 
