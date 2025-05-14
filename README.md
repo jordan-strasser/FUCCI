@@ -1,5 +1,5 @@
 # FUCCI
-FUCCI analysis pipeline to automate cell-cycle tracking and segmentation for motile cells\
+FUCCI analysis pipeline to automate cell-cycle tracking and segmentation for 2D motile cells
 
 Our automated image analysis pipeline can be broken into three main steps: 1) pre-processing, 2) cell tracking, and 3) data plotting. 
 
